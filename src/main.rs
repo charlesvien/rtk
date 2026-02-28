@@ -22,6 +22,7 @@ mod grep_cmd;
 mod hook_audit_cmd;
 mod init;
 mod integrity;
+mod jj_cmd;
 mod json_cmd;
 mod learn;
 mod lint_cmd;
@@ -593,6 +594,12 @@ enum Commands {
         args: Vec<String>,
     },
 
+    /// Jujutsu (jj) commands with compact output
+    Jj {
+        #[command(subcommand)]
+        command: JjCommands,
+    },
+
     /// Show hook rewrite audit metrics (requires RTK_HOOK_AUDIT=1)
     #[command(name = "hook-audit")]
     HookAudit {
@@ -988,6 +995,37 @@ fn run_fallback(parse_error: clap::Error) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[derive(Subcommand)]
+enum JjCommands {
+    /// Compact status output
+    Status {
+        /// Additional jj status arguments
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Condensed diff output (reuses git compact_diff)
+    Diff {
+        /// Additional jj diff arguments
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Compact log output (truncated, emails stripped)
+    Log {
+        /// Additional jj log arguments
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Compact show output (header + compacted diff)
+    Show {
+        /// Additional jj show arguments
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Passthrough: runs any unsupported jj subcommand directly
+    #[command(external_subcommand)]
+    Other(Vec<OsString>),
 }
 
 fn main() -> Result<()> {
@@ -1686,6 +1724,24 @@ fn main() -> Result<()> {
         Commands::GolangciLint { args } => {
             golangci_cmd::run(&args, cli.verbose)?;
         }
+
+        Commands::Jj { command } => match command {
+            JjCommands::Status { args } => {
+                jj_cmd::run_status(&args, cli.verbose)?;
+            }
+            JjCommands::Diff { args } => {
+                jj_cmd::run_diff(&args, cli.verbose)?;
+            }
+            JjCommands::Log { args } => {
+                jj_cmd::run_log(&args, cli.verbose)?;
+            }
+            JjCommands::Show { args } => {
+                jj_cmd::run_show(&args, cli.verbose)?;
+            }
+            JjCommands::Other(args) => {
+                jj_cmd::run_other(&args, cli.verbose)?;
+            }
+        },
 
         Commands::HookAudit { since } => {
             hook_audit_cmd::run(since, cli.verbose)?;
